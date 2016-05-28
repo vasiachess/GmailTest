@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "217470772219",
+    "project_id": "gmailtest2-1325"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:217470772219:android:2861973bd5722053",
+        "android_client_info": {
+          "package_name": "com.vasiachess.gmailtest"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "217470772219-g8mirvtubbf2kmaiat2ijf4o244vagfo.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.vasiachess.gmailtest",
+            "certificate_hash": "29A1D00ED4E2F11F134085D20179CF2C75FB3ADF"
+          }
+        },
+        {
+          "client_id": "217470772219-pgtmt0fd43tmvktoqmatelf18jd1vl94.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDcbyvEHqcG8RN-A9Pd0anGC7uD1L6XnwA"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 1,
+          "other_platform_oauth_client": []
+        },
+        "ads_service": {
+          "status": 1
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
