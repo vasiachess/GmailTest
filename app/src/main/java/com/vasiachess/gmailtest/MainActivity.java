@@ -13,6 +13,9 @@ import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.text.TextUtils;
 import android.text.method.ScrollingMovementMethod;
 import android.view.View;
@@ -36,6 +39,10 @@ import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.GmailScopes;
 import com.google.api.services.gmail.model.Label;
 import com.google.api.services.gmail.model.ListLabelsResponse;
+import com.google.api.services.gmail.model.ListMessagesResponse;
+import com.google.api.services.gmail.model.ListThreadsResponse;
+import com.google.api.services.gmail.model.Message;
+import com.google.api.services.gmail.model.Thread;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,22 +55,15 @@ import butterknife.OnClick;
 import pub.devrel.easypermissions.AfterPermissionGranted;
 import pub.devrel.easypermissions.EasyPermissions;
 
-public class MainActivity extends Activity
+public class MainActivity extends BaseActivity
 		implements EasyPermissions.PermissionCallbacks {
-	GoogleAccountCredential mCredential;
+
 	@Bind(R.id.btn_sign_in) Button btnSignIn;
+	@Bind(R.id.rv_messages) RecyclerView rvMessages;
 
-//	private TextView mOutputText;
-//	private Button mCallApiButton;
-	ProgressDialog mProgress;
+	private MessageAdapter adapter;
+	private String accountName;
 
-	static final int REQUEST_ACCOUNT_PICKER = 1000;
-	static final int REQUEST_AUTHORIZATION = 1001;
-	static final int REQUEST_GOOGLE_PLAY_SERVICES = 1002;
-	static final int REQUEST_PERMISSION_GET_ACCOUNTS = 1003;
-
-	private static final String PREF_ACCOUNT_NAME = "accountName";
-	private static final String[] SCOPES = {GmailScopes.GMAIL_LABELS};
 
 	/**
 	 * Create the main activity.
@@ -75,50 +75,7 @@ public class MainActivity extends Activity
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 		ButterKnife.bind(this);
-
-//		LinearLayout activityLayout = new LinearLayout(this);
-//		LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-//				LinearLayout.LayoutParams.MATCH_PARENT,
-//				LinearLayout.LayoutParams.MATCH_PARENT);
-//		activityLayout.setLayoutParams(lp);
-//		activityLayout.setOrientation(LinearLayout.VERTICAL);
-//		activityLayout.setPadding(16, 16, 16, 16);
-//
-//		ViewGroup.LayoutParams tlp = new ViewGroup.LayoutParams(
-//				ViewGroup.LayoutParams.WRAP_CONTENT,
-//				ViewGroup.LayoutParams.WRAP_CONTENT);
-
-//		mCallApiButton = new Button(this);
-//		mCallApiButton.setText(BUTTON_TEXT);
-//		mCallApiButton.setOnClickListener(new View.OnClickListener() {
-//			@Override
-//			public void onClick(View v) {
-//				mCallApiButton.setEnabled(false);
-//				mOutputText.setText("");
-//				getResultsFromApi();
-//				mCallApiButton.setEnabled(true);
-//			}
-//		});
-//		activityLayout.addView(mCallApiButton);
-
-//		mOutputText = new TextView(this);
-//		mOutputText.setLayoutParams(tlp);
-//		mOutputText.setPadding(16, 16, 16, 16);
-//		mOutputText.setVerticalScrollBarEnabled(true);
-//		mOutputText.setMovementMethod(new ScrollingMovementMethod());
-//		mOutputText.setText(
-//				"Click the \'" + BUTTON_TEXT + "\' button to test the API.");
-//		activityLayout.addView(mOutputText);
-
-		mProgress = new ProgressDialog(this);
-		mProgress.setMessage("Calling Gmail API ...");
-
-//		setContentView(activityLayout);
-
-		// Initialize credentials and service object.
-		mCredential = GoogleAccountCredential.usingOAuth2(
-				getApplicationContext(), Arrays.asList(SCOPES))
-				.setBackOff(new ExponentialBackOff());
+		setUpView();
 	}
 
 
@@ -155,7 +112,7 @@ public class MainActivity extends Activity
 	private void chooseAccount() {
 		if (EasyPermissions.hasPermissions(
 				this, Manifest.permission.GET_ACCOUNTS)) {
-			String accountName = getPreferences(Context.MODE_PRIVATE)
+			accountName = getPreferences(Context.MODE_PRIVATE)
 					.getString(PREF_ACCOUNT_NAME, null);
 			if (accountName != null) {
 				mCredential.setSelectedAccountName(accountName);
@@ -269,73 +226,20 @@ public class MainActivity extends Activity
 		// Do nothing.
 	}
 
-	/**
-	 * Checks whether the device currently has a network connection.
-	 *
-	 * @return true if the device has a network connection, false otherwise.
-	 */
-	private boolean isDeviceOnline() {
-		ConnectivityManager connMgr =
-				(ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-		NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
-		return (networkInfo != null && networkInfo.isConnected());
-	}
-
-	/**
-	 * Check that Google Play services APK is installed and up to date.
-	 *
-	 * @return true if Google Play Services is available and up to
-	 * date on this device; false otherwise.
-	 */
-	private boolean isGooglePlayServicesAvailable() {
-		GoogleApiAvailability apiAvailability =
-				GoogleApiAvailability.getInstance();
-		final int connectionStatusCode =
-				apiAvailability.isGooglePlayServicesAvailable(this);
-		return connectionStatusCode == ConnectionResult.SUCCESS;
-	}
-
-	/**
-	 * Attempt to resolve a missing, out-of-date, invalid or disabled Google
-	 * Play Services installation via a user dialog, if possible.
-	 */
-	private void acquireGooglePlayServices() {
-		GoogleApiAvailability apiAvailability =
-				GoogleApiAvailability.getInstance();
-		final int connectionStatusCode =
-				apiAvailability.isGooglePlayServicesAvailable(this);
-		if (apiAvailability.isUserResolvableError(connectionStatusCode)) {
-			showGooglePlayServicesAvailabilityErrorDialog(connectionStatusCode);
-		}
-	}
-
-
-	/**
-	 * Display an error dialog showing that Google Play Services is missing
-	 * or out of date.
-	 *
-	 * @param connectionStatusCode code describing the presence (or lack of)
-	 *                             Google Play Services on this device.
-	 */
-	void showGooglePlayServicesAvailabilityErrorDialog(
-			final int connectionStatusCode) {
-		GoogleApiAvailability apiAvailability = GoogleApiAvailability.getInstance();
-		Dialog dialog = apiAvailability.getErrorDialog(
-				MainActivity.this,
-				connectionStatusCode,
-				REQUEST_GOOGLE_PLAY_SERVICES);
-		dialog.show();
-	}
-
 	@OnClick(R.id.btn_sign_in) public void onClick() {
 		getResultsFromApi();
+	}
+
+	private void setUpView() {
+		rvMessages.setLayoutManager(new LinearLayoutManager(this,
+				android.support.v7.widget.LinearLayoutManager.VERTICAL, false));
 	}
 
 	/**
 	 * An asynchronous task that handles the Gmail API call.
 	 * Placing the API calls in their own task ensures the UI stays responsive.
 	 */
-	private class MakeRequestTask extends AsyncTask<Void, Void, List<String>> {
+	private class MakeRequestTask extends AsyncTask<Void, Void, List<Thread>> {
 		private Gmail mService = null;
 		private Exception mLastError = null;
 
@@ -344,7 +248,7 @@ public class MainActivity extends Activity
 			JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
 			mService = new Gmail.Builder(
 					transport, jsonFactory, credential)
-					.setApplicationName("Gmail API Android Quickstart")
+					.setApplicationName("Gmail Test")
 					.build();
 		}
 
@@ -354,7 +258,7 @@ public class MainActivity extends Activity
 		 * @param params no parameters needed for this task.
 		 */
 		@Override
-		protected List<String> doInBackground(Void... params) {
+		protected List<Thread> doInBackground(Void... params) {
 			try {
 				return getDataFromApi();
 			} catch (Exception e) {
@@ -370,16 +274,14 @@ public class MainActivity extends Activity
 		 * @return List of Strings labels.
 		 * @throws IOException
 		 */
-		private List<String> getDataFromApi() throws IOException {
+		private List<Thread> getDataFromApi() throws IOException {
 			// Get the labels in the user's account.
 			String user = "me";
-			List<String> labels = new ArrayList<String>();
-			ListLabelsResponse listResponse =
-					mService.users().labels().list(user).execute();
-			for (Label label : listResponse.getLabels()) {
-				labels.add(label.getName());
-			}
-			return labels;
+
+			ListThreadsResponse listResponse =
+					mService.users().threads().list(user).setMaxResults(10L).execute();
+
+			return listResponse.getThreads();
 		}
 
 
@@ -389,15 +291,23 @@ public class MainActivity extends Activity
 		}
 
 		@Override
-		protected void onPostExecute(List<String> output) {
+		protected void onPostExecute(List<Thread> output) {
 			mProgress.hide();
 			if (output == null || output.size() == 0) {
 				Toast.makeText(MainActivity.this, "No results returned.", Toast.LENGTH_LONG).show();
 			} else {
-				output.add(0, "Data retrieved using the Gmail API:");
-				Toast.makeText(MainActivity.this, TextUtils.join("\n", output), Toast.LENGTH_LONG).show();
-				MessagesActivity.startActivity(MainActivity.this);
+				if (getSupportActionBar() != null) {
+					getSupportActionBar().setTitle("My mail");
+				}
+				rvMessages.setVisibility(View.VISIBLE);
+				adapter = new MessageAdapter(MainActivity.this, output);
+				adapter.setListener(this::navigateToMessageActivity);
+				rvMessages.setAdapter(adapter);
 			}
+		}
+
+		private void navigateToMessageActivity(Thread thread) {
+			MessagesActivity.startActivity(MainActivity.this, thread.getId(), accountName);
 		}
 
 		@Override
@@ -422,4 +332,8 @@ public class MainActivity extends Activity
 		}
 	}
 
+	@Override protected void onDestroy() {
+		super.onDestroy();
+		ButterKnife.unbind(this);
+	}
 }
